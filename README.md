@@ -94,6 +94,10 @@ Lists the built-in strategy catalog.
 
 Evaluates current opportunities against policy and returns ranked trade proposals and blocked candidates.
 
+### `POST /v1/agents/orchestrate`
+
+Runs LTA's multi-agent committee workflow. Specialist agents generate theses, challenge assumptions, impose risk constraints, and form a coordinated execution recommendation.
+
 ### `POST /v1/trades/approve`
 
 Builds an approval package and execution steps for a proposed trade. In this foundation build, it prepares a TON-aware runbook rather than broadcasting a real transaction.

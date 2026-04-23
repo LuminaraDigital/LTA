@@ -173,6 +173,89 @@ export interface DecisionResponse {
   proposals: TradeProposal[];
 }
 
+export type AgentCell =
+  | 'signal-intelligence'
+  | 'challenge'
+  | 'allocation'
+  | 'execution-control';
+
+export type AgentRole =
+  | 'chief-investment-officer'
+  | 'signal-researcher'
+  | 'market-structure-analyst'
+  | 'onchain-intelligence-analyst'
+  | 'risk-arbiter'
+  | 'portfolio-constructor'
+  | 'treasury-steward'
+  | 'execution-strategist'
+  | 'compliance-sentinel';
+
+export type AgentStance = 'support' | 'oppose' | 'escalate' | 'abstain';
+
+export type CommitteeVerdict = 'approve' | 'approve-with-review' | 'reject';
+
+export interface WorkforceAgentDefinition {
+  id: string;
+  name: string;
+  role: AgentRole;
+  cell: AgentCell;
+  mandate: string;
+  primaryMetrics: string[];
+  handoffTargets: string[];
+}
+
+export interface WorkforceCellDefinition {
+  id: AgentCell;
+  mission: string;
+  agentIds: string[];
+}
+
+export interface WorkforceTopology {
+  version: string;
+  operatingPrinciples: string[];
+  coordinationLoops: string[];
+  cells: WorkforceCellDefinition[];
+  agents: WorkforceAgentDefinition[];
+}
+
+export interface AgentFinding {
+  agentId: string;
+  role: AgentRole;
+  stance: AgentStance;
+  confidence: number;
+  summary: string;
+  concerns: string[];
+  requestedActions: string[];
+}
+
+export interface ProposalCommitteeReview {
+  proposalId: string;
+  verdict: CommitteeVerdict;
+  consensusScore: number;
+  supportCount: number;
+  opposeCount: number;
+  escalateCount: number;
+  finalRationale: string;
+  findings: AgentFinding[];
+  nextActions: string[];
+}
+
+export interface OrchestrationReport {
+  generatedAt: string;
+  topology: WorkforceTopology;
+  proposalReviews: ProposalCommitteeReview[];
+  summary: {
+    approvedCount: number;
+    reviewCount: number;
+    rejectedCount: number;
+  };
+}
+
+export interface OrchestrationResponse {
+  decisionBook: DecisionResponse;
+  orchestration: OrchestrationReport;
+}
+
 export interface TonConfig {
   network: 'mainnet' | 'testnet';
   mcpCommand: string;

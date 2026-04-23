@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 
 import { buildDecisionEngine } from './core/decision-engine.js';
+import { buildAgentOrchestrator } from './core/agent-orchestrator.js';
 import { loadConfig } from './core/config.js';
 import { buildRiskEngine } from './core/risk-engine.js';
 import { defaultStrategies } from './core/strategy-catalog.js';
@@ -147,6 +148,10 @@ export function buildApp() {
   const strategies = defaultStrategies();
   const riskEngine = buildRiskEngine(config.policy);
   const decisionEngine = buildDecisionEngine({ config, strategies, riskEngine });
+  const agentOrchestrator = buildAgentOrchestrator({
+    config,
+    decisionEngine,
+  });
   const tonAdapter = buildTonAgenticWalletAdapter(config.ton);
 
   const app = Fastify({
@@ -178,6 +183,10 @@ export function buildApp() {
     items: strategies,
   }));
 
+  app.get('/v1/agents', async () => ({
+    items: agentOrchestrator.listAgents(),
+  }));
+
   app.post<{ Body: DecisionContext }>(
     '/v1/decisions/evaluate',
     {
@@ -187,6 +196,18 @@ export function buildApp() {
     },
     async (request) => {
       return decisionEngine.evaluate(request.body);
+    },
+  );
+
+  app.post<{ Body: DecisionContext }>(
+    '/v1/agents/orchestrate',
+    {
+      schema: {
+        body: decisionContextSchema,
+      },
+    },
+    async (request) => {
+      return agentOrchestrator.orchestrate(request.body);
     },
   );
 

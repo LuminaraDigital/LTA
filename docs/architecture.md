@@ -47,6 +47,63 @@ Outputs include:
 - human approval requirements
 - rejection or block reasons
 
+### 2.1 Multi-agent investment workforce
+
+LTA now includes an internal multi-agent operating model inspired by collaborative agent frameworks, but adapted for institutional crypto trading rather than copied from any one project.
+
+The orchestration model has four layers:
+
+- **signal agents**
+  - `macro-research-lead`
+  - `market-microstructure-analyst`
+  - `onchain-flow-scout`
+  - `event-driven-catalyst-hunter`
+- **challenge and control agents**
+  - `risk-sentinel`
+  - `compliance-guardian`
+  - `adversarial-critic`
+- **capital committee agents**
+  - `portfolio-allocator`
+  - `treasury-quarterback`
+  - `execution-chair`
+- **execution and surveillance agents**
+  - `wallet-operations-controller`
+  - `execution-runner`
+  - `post-trade-auditor`
+
+The purpose is not to simulate random personalities. It is to create structured disagreement, specialization, and escalation paths:
+
+- some agents generate opportunity conviction
+- some agents attack the proposal
+- some agents size and prioritize capital
+- some agents validate wallet and execution readiness
+
+This creates a more robust internal process than a single-model "decide and trade" loop.
+
+### 2.2 Orchestration pattern
+
+The agent workflow follows an institutional committee pattern:
+
+1. **research synthesis**
+   - signal agents score and annotate opportunities
+2. **risk and adversarial challenge**
+   - control agents identify blockers, fragility, concentration, and policy issues
+3. **committee vote**
+   - allocator and chair agents determine whether the idea should be advanceable
+4. **execution routing**
+   - wallet and execution agents produce operational next steps
+5. **surveillance**
+   - post-trade agents validate outcomes and raise drift alerts
+
+The output is an auditable orchestration brief with:
+
+- agent-by-agent recommendations
+- committee consensus level
+- challenge notes
+- recommended execution mode
+- escalation level
+- final recommendation
+
 ### 3. Policy and risk engine
 
 The risk engine enforces:
@@ -92,6 +149,12 @@ A production rollout should separate proposal generation from trade execution:
 - **execution worker**: sends orders/swaps/transfers
 - **reconciliation worker**: validates settlement and balances
 - **surveillance service**: detects anomalous behavior and policy drift
+
+The orchestration engine is intentionally separate from direct execution. This keeps:
+
+- reasoning auditable
+- approvals explicit
+- wallet movement isolated from planning logic
 
 ## Security model
 
