@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import type {
+  AiSecretsFile,
   AttachedTonWallet,
   ExecutionWebhookMap,
   LtaConfig,
@@ -65,7 +66,7 @@ function readStrategyList(
   return readList(env, name, fallback) as StrategyId[];
 }
 
-function readOptionalSecretFile(filePath?: string): TonSecretsFile | undefined {
+function readOptionalSecretFile<T>(filePath?: string): T | undefined {
   if (!filePath) {
     return undefined;
   }
@@ -76,7 +77,7 @@ function readOptionalSecretFile(filePath?: string): TonSecretsFile | undefined {
   }
 
   const raw = readFileSync(absolutePath, 'utf8');
-  return JSON.parse(raw) as TonSecretsFile;
+  return JSON.parse(raw) as T;
 }
 
 function normalizeAttachedWallets(
@@ -121,17 +122,20 @@ function defaultPolicy(env: NodeJS.ProcessEnv): PolicyPack {
 }
 
 export function loadConfigFromEnv(env: NodeJS.ProcessEnv = process.env): LtaConfig {
-  const secretFilePath =
+  const tonSecretFilePath =
     env.LTA_LOCAL_SECRET_FILE ?? '/home/ubuntu/.lta-secrets/ton-secrets.json';
-  const secretFile = readOptionalSecretFile(secretFilePath);
-  const attachedWallets = normalizeAttachedWallets(secretFile);
+  const aiSecretFilePath =
+    env.LTA_AI_SECRET_FILE ?? '/home/ubuntu/.lta-secrets/ai-secrets.json';
+  const tonSecretFile = readOptionalSecretFile<TonSecretsFile>(tonSecretFilePath);
+  const aiSecretFile = readOptionalSecretFile<AiSecretsFile>(aiSecretFilePath);
+  const attachedWallets = normalizeAttachedWallets(tonSecretFile);
   const tonConfig = {
     network: (env.LTA_TON_NETWORK as 'mainnet' | 'testnet') ?? 'testnet',
     mcpCommand: env.LTA_TON_MCP_COMMAND ?? 'npx',
     mcpArgs: readList(env, 'LTA_TON_MCP_ARGS', ['-y', '@ton/mcp@alpha']),
     mcpMode: (env.LTA_TON_MCP_MODE as 'stdio' | 'http') ?? 'stdio',
     mcpEndpoint: env.LTA_TON_MCP_ENDPOINT ?? 'http://127.0.0.1:3000/mcp',
-    localSecretFilePath: secretFilePath,
+    localSecretFilePath: tonSecretFilePath,
     agentCollectionAddress:
       env.LTA_TON_AGENT_COLLECTION_ADDRESS ??
       'EQByQ19qvWxW7VibSbGEgZiYMqilHY5y1a_eeSL2VaXhfy07',
@@ -139,10 +143,10 @@ export function loadConfigFromEnv(env: NodeJS.ProcessEnv = process.env): LtaConf
   };
 
   const ton =
-    secretFile?.tonCenterApiKey != null
+    tonSecretFile?.tonCenterApiKey != null
       ? {
           ...tonConfig,
-          tonCenterApiKey: secretFile.tonCenterApiKey,
+          tonCenterApiKey: tonSecretFile.tonCenterApiKey,
         }
       : tonConfig;
 
@@ -184,10 +188,22 @@ export function loadConfigFromEnv(env: NodeJS.ProcessEnv = process.env): LtaConf
       stateDirectory: resolve(env.LTA_DATA_DIR ?? '/workspace/.lta-data'),
       mode: readBoolean(env, 'LTA_EXECUTION_SIMULATION', true) ? 'dry-run' : 'live',
       tonExecutionTimeoutMs: readNumber(env, 'LTA_TON_EXECUTION_TIMEOUT_MS', 20_000),
+      tonRetryLimit: readNumber(env, 'LTA_TON_RETRY_LIMIT', 3),
+      tonMaxPollAttempts: readNumber(env, 'LTA_TON_MAX_POLL_ATTEMPTS', 8),
+      tonPollIntervalMs: readNumber(env, 'LTA_TON_POLL_INTERVAL_MS', 4_000),
       exchangeWebhookBaseUrl:
         env.LTA_EXCHANGE_WEBHOOK_BASE_URL ?? 'http://127.0.0.1:8787/execution',
       simulationMode: readBoolean(env, 'LTA_EXECUTION_SIMULATION', true),
       venueWebhooks,
+    },
+    ai: {
+      localSecretFilePath: aiSecretFilePath,
+      ...(aiSecretFile?.openaiApiKey
+        ? { openaiApiKey: aiSecretFile.openaiApiKey }
+        : {}),
+      ...(aiSecretFile?.kimiApiKey
+        ? { kimiApiKey: aiSecretFile.kimiApiKey }
+        : {}),
     },
   };
 }

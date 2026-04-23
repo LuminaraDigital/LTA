@@ -412,6 +412,7 @@ export interface ExecutionJobResult {
   summary: string;
   referenceId?: string;
   rawOutput?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface ExecutionJob {
@@ -458,6 +459,9 @@ export interface ExecutionConfig {
   venueWebhooks: ExecutionWebhookMap;
   exchangeWebhookBaseUrl?: string;
   simulationMode?: boolean;
+  tonPollIntervalMs: number;
+  tonMaxPollAttempts: number;
+  tonRetryLimit: number;
 }
 
 export interface PortfolioAnalyticsSnapshot {
@@ -505,6 +509,12 @@ export interface TonConfig {
   attachedWallets: AttachedTonWallet[];
 }
 
+export interface AiSecretsConfig {
+  localSecretFilePath: string;
+  openaiApiKey?: string;
+  kimiApiKey?: string;
+}
+
 export interface LtaConfig {
   environment: string;
   port: number;
@@ -517,6 +527,7 @@ export interface LtaConfig {
   database: DatabaseConfig;
   persistence: PersistenceConfig;
   execution: ExecutionConfig;
+  ai: AiSecretsConfig;
   ton: TonConfig;
 }
 
@@ -558,6 +569,11 @@ export interface SecretBackedAttachedTonWallet {
 export interface TonSecretsFile {
   tonCenterApiKey?: string;
   attachedWallets?: SecretBackedAttachedTonWallet[];
+}
+
+export interface AiSecretsFile {
+  openaiApiKey?: string;
+  kimiApiKey?: string;
 }
 
 export interface TonApprovalPlan {

@@ -33,7 +33,8 @@ export interface ExecutionService {
     proposal: TradeProposal;
     directive: ExecutionDirective;
   }): ExecutionJob;
-  dispatch(job: ExecutionJob): ExecutionJob;
+  dispatch(job: ExecutionJob): Promise<ExecutionJob>;
+  reconcile(job: ExecutionJob): Promise<ExecutionJob>;
 }
 
 export function buildExecutionService({
@@ -82,12 +83,13 @@ export function buildExecutionService({
         requestPayload,
       };
     },
-    dispatch(job: ExecutionJob) {
+    async dispatch(job: ExecutionJob) {
       const result: ExecutionJobResult =
         job.target === 'ton-mcp'
           ? {
               timestamp: nowIso(),
-              summary: config.execution.mode === 'dry-run'
+              summary:
+                config.execution.mode === 'dry-run'
                 ? 'TON MCP execution simulated successfully.'
                 : 'TON MCP execution dispatched successfully.',
               referenceId: `ton-${randomUUID().slice(0, 8)}`,
@@ -115,6 +117,12 @@ export function buildExecutionService({
         status: 'succeeded',
         updatedAt: nowIso(),
         result,
+      };
+    },
+    async reconcile(job: ExecutionJob) {
+      return {
+        ...job,
+        updatedAt: nowIso(),
       };
     },
   };

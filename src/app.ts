@@ -461,7 +461,7 @@ export function buildApp(options?: { config?: ReturnType<typeof loadConfig>; sta
       });
       stateStore.appendExecutionJob(job);
 
-      const dispatchedJob = executionService.dispatch(job);
+      const dispatchedJob = await executionService.dispatch(job);
       stateStore.updateExecutionJob(dispatchedJob);
 
       return dispatchedJob;

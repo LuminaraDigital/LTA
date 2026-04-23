@@ -34,4 +34,28 @@ describe('secret-backed TON config', () => {
     expect(config.ton.attachedWallets[0]?.address).toBe('UQExampleInlineOwner');
     expect(config.ton.attachedWallets[0]?.operatorLabel).toBe('lta-primary');
   });
+
+  it('loads AI API keys from the private AI secret file', () => {
+    const aiSecretPath = '/tmp/lta-ai-secret.json';
+    writeFileSync(
+      aiSecretPath,
+      JSON.stringify(
+        {
+          openaiApiKey: 'openai-secret',
+          kimiApiKey: 'kimi-secret',
+        },
+        null,
+        2,
+      ),
+    );
+
+    const config = loadConfigFromEnv({
+      NODE_ENV: 'test',
+      LTA_AI_SECRET_FILE: aiSecretPath,
+    });
+
+    expect(config.ai.localSecretFilePath).toBe(aiSecretPath);
+    expect(config.ai.openaiApiKey).toBe('openai-secret');
+    expect(config.ai.kimiApiKey).toBe('kimi-secret');
+  });
 });
