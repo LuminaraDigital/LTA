@@ -460,9 +460,27 @@ export interface ExecutionConfig {
   simulationMode?: boolean;
 }
 
+export interface PortfolioAnalyticsSnapshot {
+  timestamp: string;
+  navUsd: number;
+  realizedPnlUsd: number;
+  unrealizedPnlUsd: number;
+  totalPnlUsd: number;
+  openCaseCount: number;
+  completedCaseCount: number;
+  failedCaseCount: number;
+  strategyBreakdown: Array<{
+    strategyId: StrategyId;
+    cases: number;
+    realizedPnlUsd: number;
+  }>;
+  agentAttribution: AgentPerformanceSnapshot[];
+}
+
 export interface PersistenceConfig {
   dataDirectory: string;
   autoCreate: boolean;
+  databaseUrl?: string;
 }
 
 export interface StoredState {
@@ -496,9 +514,24 @@ export interface LtaConfig {
   policyVersion: string;
   requestIdSeed: string;
   policy: PolicyPack;
+  database: DatabaseConfig;
   persistence: PersistenceConfig;
   execution: ExecutionConfig;
   ton: TonConfig;
+}
+
+export interface DatabaseConfig {
+  connectionString: string;
+  maxConnections: number;
+  ssl: boolean;
+}
+
+export interface WorkerRunSummary {
+  polledAt: string;
+  jobsSeen: number;
+  jobsDispatched: number;
+  jobsSucceeded: number;
+  jobsFailed: number;
 }
 
 export interface TonWalletRegistration {

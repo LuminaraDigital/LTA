@@ -4,13 +4,15 @@ import { resolve } from 'node:path';
 
 import { buildDecisionEngine } from './core/decision-engine.js';
 import { buildAgentOrchestrator } from './core/agent-orchestrator.js';
+import { buildAnalyticsService } from './core/analytics-service.js';
 import { loadConfig } from './core/config.js';
 import { buildDelegationEngine } from './core/delegation-engine.js';
 import { buildExecutionService } from './core/execution-service.js';
 import { buildRiskEngine } from './core/risk-engine.js';
 import { defaultStrategies } from './core/strategy-catalog.js';
-import { buildStateStore } from './core/state-store.js';
+import type { StateStore } from './core/state-store.js';
 import { buildTonAgenticWalletAdapter } from './core/ton-adapter.js';
+import { buildTonWorker } from './core/ton-worker.js';
 import { renderApprovalConsole } from './ui/approval-console.js';
 import type {
   DecisionContext,
@@ -200,12 +202,15 @@ const executionJobBodySchema = {
   },
 } as const;
 
-export function buildApp() {
-  const config = loadConfig();
+export function buildApp(options?: { config?: ReturnType<typeof loadConfig>; stateStore?: StateStore }) {
+  const config = options?.config ?? loadConfig();
   const strategies = defaultStrategies();
   const riskEngine = buildRiskEngine(config.policy);
   const decisionEngine = buildDecisionEngine({ config, strategies, riskEngine });
-  const stateStore = buildStateStore(config);
+  const stateStore = options?.stateStore;
+  if (!stateStore) {
+    throw new Error('buildApp requires a StateStore instance.');
+  }
   const agentOrchestrator = buildAgentOrchestrator({
     config,
     decisionEngine,
@@ -214,9 +219,14 @@ export function buildApp() {
     topology: agentOrchestrator.listAgents(),
   });
   const tonAdapter = buildTonAgenticWalletAdapter(config.ton);
+  const analyticsService = buildAnalyticsService(stateStore);
   const executionService = buildExecutionService({
     config,
     tonAdapter,
+  });
+  const tonWorker = buildTonWorker({
+    stateStore,
+    executionService,
   });
 
   const app = Fastify({
@@ -410,6 +420,14 @@ export function buildApp() {
     items: stateStore.listAgentMemories(),
   }));
 
+  app.get('/v1/analytics/portfolio', async () => ({
+    snapshot: await analyticsService.getPortfolioAnalytics(),
+  }));
+
+  app.get('/v1/analytics/dashboard', async () => ({
+    dashboard: await analyticsService.getDashboardModel(),
+  }));
+
   app.post<{
     Body: {
       caseId: string;
@@ -452,6 +470,10 @@ export function buildApp() {
 
   app.get('/v1/execution/jobs', async () => ({
     items: stateStore.listExecutionJobs(),
+  }));
+
+  app.post('/v1/workers/ton/run-once', async () => ({
+    results: await tonWorker.runOnce(),
   }));
 
   app.post<{ Body: { trade: TradeIntent } }>(

@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 
 import type {
   AttachedTonWallet,
+  ExecutionWebhookMap,
   LtaConfig,
   PolicyPack,
   StrategyId,
@@ -145,6 +146,18 @@ export function loadConfigFromEnv(env: NodeJS.ProcessEnv = process.env): LtaConf
         }
       : tonConfig;
 
+  const venueWebhooks: ExecutionWebhookMap = {
+    default:
+      env.LTA_EXCHANGE_WEBHOOK_BASE_URL ?? 'http://127.0.0.1:8787/execution',
+    ...(env.LTA_BINANCE_WEBHOOK_URL ? { binance: env.LTA_BINANCE_WEBHOOK_URL } : {}),
+    ...(env.LTA_BYBIT_WEBHOOK_URL ? { bybit: env.LTA_BYBIT_WEBHOOK_URL } : {}),
+    ...(env.LTA_HYPERLIQUID_WEBHOOK_URL
+      ? { hyperliquid: env.LTA_HYPERLIQUID_WEBHOOK_URL }
+      : {}),
+    ...(env.LTA_TON_DEX_WEBHOOK_URL ? { tonDex: env.LTA_TON_DEX_WEBHOOK_URL } : {}),
+    ...(env.LTA_STONFI_WEBHOOK_URL ? { stonfi: env.LTA_STONFI_WEBHOOK_URL } : {}),
+  };
+
   return {
     environment: env.NODE_ENV ?? 'development',
     port: readNumber(env, 'PORT', 3000),
@@ -154,10 +167,18 @@ export function loadConfigFromEnv(env: NodeJS.ProcessEnv = process.env): LtaConf
     policyVersion: env.LTA_POLICY_VERSION ?? '2026-04-enterprise-alpha',
     requestIdSeed: env.LTA_REQUEST_ID_SEED ?? 'lta-seed',
     policy: defaultPolicy(env),
+    database: {
+      connectionString:
+        env.LTA_DATABASE_URL ?? 'postgres://postgres:postgres@127.0.0.1:5432/lta',
+      maxConnections: readNumber(env, 'LTA_DB_MAX_CONNECTIONS', 10),
+      ssl: readBoolean(env, 'LTA_DB_SSL', false),
+    },
     ton,
     persistence: {
       dataDirectory: resolve(env.LTA_DATA_DIR ?? '/workspace/.lta-data'),
       autoCreate: readBoolean(env, 'LTA_AUTO_CREATE_DATA_DIR', true),
+      databaseUrl:
+        env.LTA_DATABASE_URL ?? 'postgres://postgres:postgres@127.0.0.1:5432/lta',
     },
     execution: {
       stateDirectory: resolve(env.LTA_DATA_DIR ?? '/workspace/.lta-data'),
@@ -166,23 +187,7 @@ export function loadConfigFromEnv(env: NodeJS.ProcessEnv = process.env): LtaConf
       exchangeWebhookBaseUrl:
         env.LTA_EXCHANGE_WEBHOOK_BASE_URL ?? 'http://127.0.0.1:8787/execution',
       simulationMode: readBoolean(env, 'LTA_EXECUTION_SIMULATION', true),
-      venueWebhooks: {
-        default:
-          env.LTA_EXCHANGE_WEBHOOK_BASE_URL ?? 'http://127.0.0.1:8787/execution',
-        ...(env.LTA_BINANCE_WEBHOOK_URL
-          ? { binance: env.LTA_BINANCE_WEBHOOK_URL }
-          : {}),
-        ...(env.LTA_BYBIT_WEBHOOK_URL ? { bybit: env.LTA_BYBIT_WEBHOOK_URL } : {}),
-        ...(env.LTA_HYPERLIQUID_WEBHOOK_URL
-          ? { hyperliquid: env.LTA_HYPERLIQUID_WEBHOOK_URL }
-          : {}),
-        ...(env.LTA_TON_DEX_WEBHOOK_URL
-          ? { tonDex: env.LTA_TON_DEX_WEBHOOK_URL }
-          : {}),
-        ...(env.LTA_STONFI_WEBHOOK_URL
-          ? { stonfi: env.LTA_STONFI_WEBHOOK_URL }
-          : {}),
-      },
+      venueWebhooks,
     },
   };
 }

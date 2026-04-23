@@ -257,9 +257,9 @@ This is the beginning of a formal internal evaluation framework for agent qualit
 
 ## Suggested next build phases
 
-1. Move the state store from JSON files to Postgres.
-2. Add signed user authentication and role-based approval permissions.
-3. Add real TON MCP calls and exchange gateway authentication.
-4. Add richer agent memory retrieval and lesson synthesis.
-5. Add browser dashboards for task graph progress and attribution analytics.
-6. Add event-driven workers and queue infrastructure for parallel execution.
+1. Replace the remaining file-backed workflow persistence with Postgres tables, migrations, and indexed query models.
+2. Promote the TON MCP execution path into a long-running worker with polling, reconciliation, and retry policies.
+3. Add signed user authentication and role-based approval permissions.
+4. Add richer agent memory retrieval and lesson synthesis on top of journal and outcome history.
+5. Add browser dashboards for task graph progress, NAV, realized/unrealized PnL, and agent attribution analytics.
+6. Keep non-TON venue adapters minimal unless they materially improve the TON operating model.

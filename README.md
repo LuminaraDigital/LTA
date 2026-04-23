@@ -217,7 +217,16 @@ This repository now includes a lightweight internal workflow OS, but a full inst
 - execution monitoring and reconciliation
 - compliance, audit, and operational alerting
 - pre-production certification for every strategy and wallet path
-- hardened persistence backends (e.g. Postgres/Object storage instead of file-backed local state)
+- production-grade external services for market and settlement reconciliation
+
+This branch is moving toward a TON-first production path:
+
+- Postgres-backed workflow persistence
+- real SQL migrations and indexed models
+- TON worker execution queue with polling and reconciliation
+- portfolio analytics for NAV, realized/unrealized PnL, strategy contribution, and agent contribution
+
+Non-TON execution surfaces such as exchange webhooks and Base-related integrations should remain optional and secondary unless they clearly strengthen the TON operating model.
 
 ## TON agentic wallet stance
 

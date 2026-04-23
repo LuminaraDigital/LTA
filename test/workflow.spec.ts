@@ -2,18 +2,22 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { newDb } from 'pg-mem';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { buildAgentOrchestrator } from '../src/core/agent-orchestrator.js';
 import { loadConfigFromEnv } from '../src/core/config.js';
 import { buildDelegationEngine } from '../src/core/delegation-engine.js';
+import { createDatabaseClient, runMigrations } from '../src/db/client.js';
 import { buildDecisionEngine } from '../src/core/decision-engine.js';
 import { buildExecutionService } from '../src/core/execution-service.js';
 import { buildRiskEngine } from '../src/core/risk-engine.js';
 import { defaultStrategies } from '../src/core/strategy-catalog.js';
-import { buildStateStore } from '../src/core/state-store.js';
+import { buildStateStore, type StateStore } from '../src/core/state-store.js';
 import { buildTonAgenticWalletAdapter } from '../src/core/ton-adapter.js';
 import type { DecisionContext, LtaConfig } from '../src/core/types.js';
+import { buildAnalyticsService } from '../src/core/analytics-service.js';
+import { buildTonWorker } from '../src/core/ton-worker.js';
 
 const tempDirs: string[] = [];
 
@@ -78,13 +82,15 @@ function buildContext(overrides?: Partial<DecisionContext>): DecisionContext {
   };
 }
 
-function buildRuntime(): {
+async function buildRuntime(): Promise<{
   config: LtaConfig;
-  store: ReturnType<typeof buildStateStore>;
+  store: StateStore;
   orchestrator: ReturnType<typeof buildAgentOrchestrator>;
   delegationEngine: ReturnType<typeof buildDelegationEngine>;
   executionService: ReturnType<typeof buildExecutionService>;
-} {
+  analyticsService: ReturnType<typeof buildAnalyticsService>;
+  tonWorker: ReturnType<typeof buildTonWorker>;
+}> {
   const dir = mkdtempSync(join(tmpdir(), 'lta-workflow-'));
   tempDirs.push(dir);
 
@@ -110,7 +116,21 @@ function buildRuntime(): {
     decisionEngine,
   });
 
-  const store = buildStateStore(config);
+  const db = newDb();
+  const pgAdapter = db.adapters.createPg();
+  const client = createDatabaseClient({
+    connectionString: 'postgres://pg-mem/lta',
+    poolFactory: () => new pgAdapter.Pool(),
+  });
+  await runMigrations({
+    connectionString: 'postgres://pg-mem/lta',
+    factory: {
+      create: () => client,
+    },
+  });
+  const store = await buildStateStore({
+    db: client,
+  });
   const delegationEngine = buildDelegationEngine({
     topology: orchestrator.listAgents(),
   });
@@ -118,6 +138,8 @@ function buildRuntime(): {
     config,
     tonAdapter: buildTonAgenticWalletAdapter(config.ton),
   });
+  const analyticsService = buildAnalyticsService(store);
+  const tonWorker = buildTonWorker({ stateStore: store, executionService });
 
   return {
     config,
@@ -125,12 +147,14 @@ function buildRuntime(): {
     orchestrator,
     delegationEngine,
     executionService,
+    analyticsService,
+    tonWorker,
   };
 }
 
 describe('LTA workflow operating system', () => {
-  it('persists case files, journal memories, and delegated tasks', () => {
-    const { store, orchestrator, delegationEngine } = buildRuntime();
+  it('persists case files, journal memories, and delegated tasks', async () => {
+    const { store, orchestrator, delegationEngine } = await buildRuntime();
     const orchestrationResponse = orchestrator.orchestrate(buildContext());
     const delegatedTasks = delegationEngine.buildTaskGraph(orchestrationResponse);
     const caseFile = store.createCaseFromOrchestration({
@@ -143,11 +167,13 @@ describe('LTA workflow operating system', () => {
     expect(caseFile.delegation.tasks.length).toBeGreaterThan(0);
     expect(store.listCases()).toHaveLength(1);
     expect(store.listAgentMemories().length).toBeGreaterThan(0);
-    expect(store.listCases()[0]?.delegation.tasks.length).toBe(caseFile.delegation.tasks.length);
+    expect(store.listCases()[0]?.delegation.tasks.length).toBe(
+      caseFile.delegation.tasks.length,
+    );
   });
 
-  it('records approvals, queues execution jobs, and stores dispatch results', () => {
-    const { store, orchestrator, delegationEngine, executionService } = buildRuntime();
+  it('records approvals, queues execution jobs, and stores dispatch results', async () => {
+    const { store, orchestrator, delegationEngine, executionService } = await buildRuntime();
     const context = buildContext();
     const orchestrationResponse = orchestrator.orchestrate(context);
     const delegatedTasks = delegationEngine.buildTaskGraph(orchestrationResponse);
@@ -183,8 +209,8 @@ describe('LTA workflow operating system', () => {
     expect(store.getCase(caseFile.id)?.executionJobIds).toHaveLength(1);
   });
 
-  it('records outcomes and updates per-agent attribution scores', () => {
-    const { store, orchestrator, delegationEngine } = buildRuntime();
+  it('records outcomes and updates per-agent attribution scores', async () => {
+    const { store, orchestrator, delegationEngine, analyticsService } = await buildRuntime();
     const context = buildContext();
     const orchestrationResponse = orchestrator.orchestrate(context);
     const delegatedTasks = delegationEngine.buildTaskGraph(orchestrationResponse);
@@ -207,5 +233,33 @@ describe('LTA workflow operating system', () => {
     const attribution = store.listAgentAttribution();
     expect(attribution.length).toBeGreaterThan(0);
     expect(attribution.some((entry) => entry.contributionScore > 0)).toBe(true);
+    const analytics = await analyticsService.getPortfolioAnalytics();
+    expect(analytics.realizedPnlUsd).toBe(4200);
+    expect(analytics.strategyBreakdown.length).toBeGreaterThan(0);
+    expect(analytics.agentAttribution.length).toBeGreaterThan(0);
+  });
+
+  it('polls queued TON jobs and reconciles them through the TON worker', async () => {
+    const { store, orchestrator, delegationEngine, executionService, tonWorker } =
+      await buildRuntime();
+    const context = buildContext();
+    const orchestrationResponse = orchestrator.orchestrate(context);
+    const delegatedTasks = delegationEngine.buildTaskGraph(orchestrationResponse);
+    const caseFile = store.createCaseFromOrchestration({
+      context,
+      orchestrationResponse,
+      delegatedTasks,
+    });
+
+    const job = executionService.createJob({
+      caseId: caseFile.id,
+      proposal: orchestrationResponse.decisionBook.proposals[0]!,
+      directive: 'ton-mcp-swap',
+    });
+    store.appendExecutionJob(job);
+
+    const processed = await tonWorker.pollAndProcess();
+    expect(processed.length).toBe(1);
+    expect(processed[0]?.status).toBe('succeeded');
   });
 });
