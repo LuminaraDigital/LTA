@@ -182,9 +182,84 @@ Your supplied references influenced these modules directly:
 
 ## Suggested next build phases
 
-1. Add persistent storage for decisions, approvals, and audit trails.
-2. Add venue adapters for TON DEXs and selected centralized exchanges.
-3. Add market data ingestion and feature engineering pipelines.
-4. Add simulation and paper-trading execution modes.
-5. Add portfolio analytics, PnL attribution, and treasury reporting.
-6. Add formal role-based access control and signed approval workflows.
+LTA now includes a first operating-system layer for institutional workflows:
+
+- persistent case files for each orchestration run
+- agent memory journals and case-linked notes
+- CIO-led delegation graphs routed by strategy and opportunity type
+- human approval events with approve/reject/override decisions
+- execution job handoff to TON MCP or exchange webhook workers
+- per-agent performance attribution from recorded proposal outcomes
+
+### 6. Persistent memory and case files
+
+Each orchestration can now produce a durable case file that stores:
+
+- the decision book
+- committee review outcomes
+- delegated task graph
+- approvals
+- execution jobs
+- agent journal entries
+- proposal outcome and PnL
+
+This gives LTA an auditable operating history rather than stateless inference.
+
+### 7. Delegation engine
+
+The delegation engine converts proposal + committee context into specialist tasks.
+
+Examples:
+
+- TON treasury ideas route to onchain intelligence, treasury stewardship, and execution strategy
+- cross-exchange arbitrage routes to market structure, execution strategy, and risk
+- funding carry routes to signal research, portfolio construction, and risk
+- directional ML trades route to CIO escalation and allocation review
+
+### 8. Approval console and workflows
+
+The internal approval console is served from `/v1/console` and is designed for internal committee operators.
+
+Workflow:
+
+1. `POST /v1/agents/orchestrate`
+2. inspect the generated case in `/v1/cases`
+3. approve / reject / override using `/v1/cases/:caseId/approvals`
+4. queue execution jobs through `/v1/execution/jobs`
+5. record realized outcomes through `/v1/cases/:caseId/outcomes`
+
+### 9. Execution workers
+
+LTA now supports a guarded handoff model to:
+
+- **TON MCP worker**
+  - intended for TON wallet-native actions using the configured TON MCP endpoint or command
+- **exchange webhook workers**
+  - intended for internal execution gateways that translate approved trade jobs into venue-specific order flows
+
+This layer is still conservative by design:
+
+- jobs are created explicitly
+- execution can run in simulation mode
+- human approval remains part of the workflow where required
+
+### 10. Agent attribution
+
+When an outcome is recorded, LTA updates per-agent attribution snapshots:
+
+- cases reviewed
+- support wins / losses
+- oppose wins / losses
+- escalations
+- contribution score
+
+This is the beginning of a formal internal evaluation framework for agent quality and decision usefulness.
+
+## Suggested next build phases
+
+1. Move the state store from JSON files to Postgres.
+2. Add signed user authentication and role-based approval permissions.
+3. Add real TON MCP calls and exchange gateway authentication.
+4. Add richer agent memory retrieval and lesson synthesis.
+5. Add browser dashboards for task graph progress and attribution analytics.
+6. Add event-driven workers and queue infrastructure for parallel execution.

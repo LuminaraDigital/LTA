@@ -1,12 +1,23 @@
 import Fastify from 'fastify';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 import { buildDecisionEngine } from './core/decision-engine.js';
 import { buildAgentOrchestrator } from './core/agent-orchestrator.js';
 import { loadConfig } from './core/config.js';
+import { buildDelegationEngine } from './core/delegation-engine.js';
+import { buildExecutionService } from './core/execution-service.js';
 import { buildRiskEngine } from './core/risk-engine.js';
 import { defaultStrategies } from './core/strategy-catalog.js';
+import { buildStateStore } from './core/state-store.js';
 import { buildTonAgenticWalletAdapter } from './core/ton-adapter.js';
-import type { DecisionContext, Opportunity, TradeIntent } from './core/types.js';
+import { renderApprovalConsole } from './ui/approval-console.js';
+import type {
+  DecisionContext,
+  ExecutionDirective,
+  Opportunity,
+  TradeIntent,
+} from './core/types.js';
 
 const portfolioSchema = {
   type: 'object',
@@ -143,16 +154,70 @@ const approveTradeBodySchema = {
   },
 } as const;
 
+const approvalDecisionSchema = {
+  type: 'string',
+  enum: ['approve', 'reject', 'override'],
+} as const;
+
+const caseApprovalBodySchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['reviewId', 'approver', 'decision'],
+  properties: {
+    reviewId: { type: 'string', minLength: 1 },
+    approver: { type: 'string', minLength: 1 },
+    decision: approvalDecisionSchema,
+    rationale: { type: 'string' },
+  },
+} as const;
+
+const outcomeBodySchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['proposalId', 'outcome', 'pnlUsd'],
+  properties: {
+    proposalId: { type: 'string', minLength: 1 },
+    outcome: {
+      type: 'string',
+      enum: ['profit', 'loss', 'scratch', 'cancelled'],
+    },
+    pnlUsd: { type: 'number' },
+    notes: { type: 'string' },
+  },
+} as const;
+
+const executionJobBodySchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['caseId', 'proposalId', 'directive'],
+  properties: {
+    caseId: { type: 'string', minLength: 1 },
+    proposalId: { type: 'string', minLength: 1 },
+    directive: {
+      type: 'string',
+      enum: ['ton-mcp-transfer', 'ton-mcp-swap', 'exchange-webhook'],
+    },
+  },
+} as const;
+
 export function buildApp() {
   const config = loadConfig();
   const strategies = defaultStrategies();
   const riskEngine = buildRiskEngine(config.policy);
   const decisionEngine = buildDecisionEngine({ config, strategies, riskEngine });
+  const stateStore = buildStateStore(config);
   const agentOrchestrator = buildAgentOrchestrator({
     config,
     decisionEngine,
   });
+  const delegationEngine = buildDelegationEngine({
+    topology: agentOrchestrator.listAgents(),
+  });
   const tonAdapter = buildTonAgenticWalletAdapter(config.ton);
+  const executionService = buildExecutionService({
+    config,
+    tonAdapter,
+  });
 
   const app = Fastify({
     logger: true,
@@ -187,6 +252,30 @@ export function buildApp() {
     items: agentOrchestrator.listAgents(),
   }));
 
+  app.get('/v1/console', async (_request, reply) => {
+    reply.type('text/html');
+    return renderApprovalConsole();
+  });
+
+  app.get('/v1/cases', async () => ({
+    items: stateStore.listCases(),
+  }));
+
+  app.get<{ Params: { caseId: string } }>(
+    '/v1/cases/:caseId',
+    async (request, reply) => {
+      const caseFile = stateStore.getCase(request.params.caseId);
+      if (!caseFile) {
+        reply.code(404);
+        return {
+          message: 'Case not found.',
+        };
+      }
+
+      return caseFile;
+    },
+  );
+
   app.post<{ Body: DecisionContext }>(
     '/v1/decisions/evaluate',
     {
@@ -207,9 +296,163 @@ export function buildApp() {
       },
     },
     async (request) => {
-      return agentOrchestrator.orchestrate(request.body);
+      const orchestrationResponse = agentOrchestrator.orchestrate(request.body);
+      const delegatedTasks = delegationEngine.buildTaskGraph(orchestrationResponse);
+      const caseFile = stateStore.createCaseFromOrchestration({
+        context: request.body,
+        orchestrationResponse,
+        delegatedTasks,
+      });
+
+      return {
+        ...orchestrationResponse,
+        caseFile,
+      };
     },
   );
+
+  app.post<{
+    Params: { caseId: string };
+    Body: {
+      reviewId: string;
+      approver: string;
+      decision: 'approve' | 'reject' | 'override';
+      rationale?: string;
+    };
+  }>(
+    '/v1/cases/:caseId/approvals',
+    {
+      schema: {
+        body: caseApprovalBodySchema,
+      },
+    },
+    async (request, reply) => {
+      const approvalEvent = stateStore.recordApproval(
+        request.body.rationale
+          ? {
+              caseId: request.params.caseId,
+              reviewId: request.body.reviewId,
+              approver: request.body.approver,
+              decision: request.body.decision,
+              rationale: request.body.rationale,
+            }
+          : {
+              caseId: request.params.caseId,
+              reviewId: request.body.reviewId,
+              approver: request.body.approver,
+              decision: request.body.decision,
+            },
+      );
+
+      if (!approvalEvent) {
+        reply.code(404);
+        return {
+          message: 'Case or review not found.',
+        };
+      }
+
+      return approvalEvent;
+    },
+  );
+
+  app.post<{
+    Params: { caseId: string };
+    Body: {
+      proposalId: string;
+      outcome: 'profit' | 'loss' | 'scratch' | 'cancelled';
+      pnlUsd: number;
+      notes?: string;
+    };
+  }>(
+    '/v1/cases/:caseId/outcomes',
+    {
+      schema: {
+        body: outcomeBodySchema,
+      },
+    },
+    async (request, reply) => {
+      const outcome = stateStore.recordOutcome(
+        request.body.notes
+          ? {
+              caseId: request.params.caseId,
+              proposalId: request.body.proposalId,
+              outcome: request.body.outcome,
+              pnlUsd: request.body.pnlUsd,
+              notes: request.body.notes,
+            }
+          : {
+              caseId: request.params.caseId,
+              proposalId: request.body.proposalId,
+              outcome: request.body.outcome,
+              pnlUsd: request.body.pnlUsd,
+            },
+      );
+
+      if (!outcome) {
+        reply.code(404);
+        return {
+          message: 'Case or proposal not found.',
+        };
+      }
+
+      return {
+        outcome,
+        attribution: stateStore.listAgentAttribution(),
+      };
+    },
+  );
+
+  app.get('/v1/agents/attribution', async () => ({
+    items: stateStore.listAgentAttribution(),
+  }));
+
+  app.get('/v1/agents/memory', async () => ({
+    items: stateStore.listAgentMemories(),
+  }));
+
+  app.post<{
+    Body: {
+      caseId: string;
+      proposalId: string;
+      directive: ExecutionDirective;
+    };
+  }>(
+    '/v1/execution/jobs',
+    {
+      schema: {
+        body: executionJobBodySchema,
+      },
+    },
+    async (request, reply) => {
+      const caseFile = stateStore.getCase(request.body.caseId);
+      const proposal = caseFile?.proposal.proposalId === request.body.proposalId
+        ? caseFile.proposal
+        : undefined;
+
+      if (!caseFile || !proposal) {
+        reply.code(404);
+        return {
+          message: 'Case or proposal not found.',
+        };
+      }
+
+      const job = executionService.createJob({
+        caseId: request.body.caseId,
+        proposal,
+        directive: request.body.directive,
+      });
+      stateStore.appendExecutionJob(job);
+
+      const dispatchedJob = executionService.dispatch(job);
+      stateStore.updateExecutionJob(dispatchedJob);
+
+      return dispatchedJob;
+    },
+  );
+
+  app.get('/v1/execution/jobs', async () => ({
+    items: stateStore.listExecutionJobs(),
+  }));
 
   app.post<{ Body: { trade: TradeIntent } }>(
     '/v1/trades/approve',

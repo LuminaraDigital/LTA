@@ -17,6 +17,10 @@ This repository intentionally ships a production-minded **foundation**, not a fa
 - LTA domain model for opportunities, trade proposals, policies, and wallet execution
 - Decision engine with deterministic scoring and gating
 - Risk engine with hard blocks and human-approval triggers
+- Persistent case files, agent memory journals, delegated task graphs, approval records, and execution jobs
+- Human approval console for committee review workflows
+- Delegation engine that routes proposal work from the CIO to specialist agents automatically
+- Agent attribution tracking to measure who improved or weakened outcomes
 - TON agentic wallet adapter contract for future `@ton/mcp` execution wiring
 - Docker image, CI workflow, environment template, and Vitest coverage
 - Architecture documentation and source-reference mapping
@@ -98,9 +102,56 @@ Evaluates current opportunities against policy and returns ranked trade proposal
 
 Runs LTA's multi-agent committee workflow. Specialist agents generate theses, challenge assumptions, impose risk constraints, and form a coordinated execution recommendation.
 
+This also persists:
+
+- a case file
+- agent memory and journal entries
+- delegated specialist tasks
+- committee review records
+
+### `GET /v1/cases`
+
+Lists persisted case files for review and execution follow-up.
+
+### `GET /v1/cases/:caseId`
+
+Returns a single persisted case file with orchestration, task graph, approvals, jobs, and outcome history.
+
+### `POST /v1/cases/:caseId/approvals`
+
+Records committee approval, rejection, or override for a specific proposal review inside a case.
+
+### `POST /v1/cases/:caseId/outcomes`
+
+Records realized outcome data and updates per-agent attribution.
+
+### `GET /v1/agents/memory`
+
+Returns agent journal history and prior case-memory records.
+
+### `GET /v1/agents/attribution`
+
+Returns performance attribution snapshots for each agent.
+
+### `GET /v1/console`
+
+Serves an internal browser-based committee approval console.
+
+### `POST /v1/execution/jobs`
+
+Creates and dispatches execution jobs for approved proposals. Current connectors include:
+
+- `ton-mcp-transfer`
+- `ton-mcp-swap`
+- `exchange-webhook`
+
+### `GET /v1/execution/jobs`
+
+Lists execution jobs and their live/simulated dispatch status.
+
 ### `POST /v1/trades/approve`
 
-Builds an approval package and execution steps for a proposed trade. In this foundation build, it prepares a TON-aware runbook rather than broadcasting a real transaction.
+Builds an approval package and execution steps for a proposed trade.
 
 ## Example decision request
 
@@ -158,7 +209,7 @@ Builds an approval package and execution steps for a proposed trade. In this fou
 
 ## Production notes
 
-This repository is ready as a control-plane foundation, but a full institutional deployment still requires:
+This repository now includes a lightweight internal workflow OS, but a full institutional deployment still requires:
 
 - real venue connectors
 - secure secret management / HSM integration
@@ -166,6 +217,7 @@ This repository is ready as a control-plane foundation, but a full institutional
 - execution monitoring and reconciliation
 - compliance, audit, and operational alerting
 - pre-production certification for every strategy and wallet path
+- hardened persistence backends (e.g. Postgres/Object storage instead of file-backed local state)
 
 ## TON agentic wallet stance
 

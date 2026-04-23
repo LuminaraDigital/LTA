@@ -256,6 +256,225 @@ export interface OrchestrationResponse {
   orchestration: OrchestrationReport;
 }
 
+export type AgentJournalCategory =
+  | 'case'
+  | 'delegation'
+  | 'approval'
+  | 'execution'
+  | 'outcome'
+  | 'lesson';
+
+export interface AgentJournalEntry {
+  id: string;
+  timestamp: string;
+  agentId: string;
+  role: AgentRole;
+  category: AgentJournalCategory;
+  summary: string;
+  linkedCaseFileId?: string;
+  linkedProposalId?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface AgentMemoryFile {
+  agentId: string;
+  role: AgentRole;
+  updatedAt: string;
+  journal: AgentJournalEntry[];
+}
+
+export type DelegationTaskKind =
+  | 'signal-analysis'
+  | 'market-structure-check'
+  | 'onchain-check'
+  | 'risk-review'
+  | 'compliance-review'
+  | 'allocation-review'
+  | 'treasury-review'
+  | 'execution-plan'
+  | 'post-trade-review';
+
+export type DelegationTaskPriority = 'low' | 'medium' | 'high' | 'critical';
+
+export type DelegationTaskStatus =
+  | 'pending'
+  | 'ready'
+  | 'in-progress'
+  | 'completed'
+  | 'blocked'
+  | 'cancelled';
+
+export interface DelegationTask {
+  id: string;
+  caseFileId: string;
+  proposalId: string;
+  createdAt: string;
+  assignedByAgentId: string;
+  assignedToAgentId: string;
+  assignedToRole: AgentRole;
+  kind: DelegationTaskKind;
+  title: string;
+  description: string;
+  priority: DelegationTaskPriority;
+  status: DelegationTaskStatus;
+  dependsOnTaskIds: string[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface DelegationGraph {
+  caseFileId: string;
+  proposalId: string;
+  createdAt: string;
+  rootAgentId: string;
+  tasks: DelegationTask[];
+}
+
+export type ApprovalDecision = 'approve' | 'reject' | 'override';
+
+export interface ApprovalRecord {
+  id: string;
+  caseFileId: string;
+  timestamp: string;
+  actor: string;
+  decision: ApprovalDecision;
+  comment: string;
+}
+
+export type ProposalOutcomeResult = 'win' | 'loss' | 'flat';
+
+export interface ProposalOutcome {
+  caseFileId: string;
+  recordedAt: string;
+  result: ProposalOutcomeResult;
+  realizedPnlUsd: number;
+  realizedPnlBps: number;
+  notes?: string;
+}
+
+export interface CaseEvent {
+  timestamp: string;
+  actor: string;
+  type:
+    | 'created'
+    | 'delegated'
+    | 'approval'
+    | 'execution'
+    | 'outcome'
+    | 'note';
+  summary: string;
+  metadata?: Record<string, unknown>;
+}
+
+export type CaseFileStatus =
+  | 'pending-approval'
+  | 'approved'
+  | 'rejected'
+  | 'overridden'
+  | 'executing'
+  | 'completed'
+  | 'failed';
+
+export interface CaseFile {
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+  status: CaseFileStatus;
+  proposalId: string;
+  strategyId: StrategyId;
+  symbol: string;
+  venue: string;
+  proposal: TradeProposal;
+  committeeReview: ProposalCommitteeReview;
+  delegation: DelegationGraph;
+  approvals: ApprovalRecord[];
+  executionJobIds: string[];
+  events: CaseEvent[];
+  outcome?: ProposalOutcome;
+}
+
+export type ExecutionMode = 'dry-run' | 'live';
+
+export type ExecutionDirective =
+  | 'ton-mcp-transfer'
+  | 'ton-mcp-swap'
+  | 'exchange-webhook';
+
+export type ExecutionJobTarget = 'ton-mcp' | 'venue-webhook';
+
+export type ExecutionJobStatus =
+  | 'queued'
+  | 'running'
+  | 'succeeded'
+  | 'failed';
+
+export interface ExecutionJobResult {
+  timestamp: string;
+  summary: string;
+  referenceId?: string;
+  rawOutput?: string;
+}
+
+export interface ExecutionJob {
+  id: string;
+  caseFileId: string;
+  proposalId: string;
+  target: ExecutionJobTarget;
+  mode: ExecutionMode;
+  venue: string;
+  createdAt: string;
+  updatedAt: string;
+  status: ExecutionJobStatus;
+  requestPayload: Record<string, unknown>;
+  result?: ExecutionJobResult;
+}
+
+export interface AgentPerformanceSnapshot {
+  agentId: string;
+  role: AgentRole;
+  casesReviewed: number;
+  supportWins: number;
+  supportLosses: number;
+  opposeWins: number;
+  opposeLosses: number;
+  escalateCount: number;
+  abstainCount: number;
+  contributionScore: number;
+  updatedAt: string;
+}
+
+export interface ExecutionWebhookMap {
+  default?: string;
+  binance?: string;
+  bybit?: string;
+  hyperliquid?: string;
+  tonDex?: string;
+  stonfi?: string;
+}
+
+export interface ExecutionConfig {
+  stateDirectory: string;
+  mode: ExecutionMode;
+  tonExecutionTimeoutMs: number;
+  venueWebhooks: ExecutionWebhookMap;
+  exchangeWebhookBaseUrl?: string;
+  simulationMode?: boolean;
+}
+
+export interface PersistenceConfig {
+  dataDirectory: string;
+  autoCreate: boolean;
+}
+
+export interface StoredState {
+  caseFiles: CaseFile[];
+  agentJournal: AgentJournalEntry[];
+  delegationTasks: DelegationTask[];
+  approvals: ApprovalRecord[];
+  executionJobs: ExecutionJob[];
+  outcomes: ProposalOutcome[];
+  attribution: AgentPerformanceSnapshot[];
+}
+
 export interface TonConfig {
   network: 'mainnet' | 'testnet';
   mcpCommand: string;
@@ -277,6 +496,8 @@ export interface LtaConfig {
   policyVersion: string;
   requestIdSeed: string;
   policy: PolicyPack;
+  persistence: PersistenceConfig;
+  execution: ExecutionConfig;
   ton: TonConfig;
 }
 

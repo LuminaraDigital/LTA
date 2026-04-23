@@ -43,6 +43,19 @@ function readList(
     .filter(Boolean);
 }
 
+function readBoolean(
+  env: NodeJS.ProcessEnv,
+  name: string,
+  fallback: boolean,
+): boolean {
+  const raw = env[name];
+  if (!raw) {
+    return fallback;
+  }
+
+  return raw === 'true';
+}
+
 function readStrategyList(
   env: NodeJS.ProcessEnv,
   name: string,
@@ -142,6 +155,35 @@ export function loadConfigFromEnv(env: NodeJS.ProcessEnv = process.env): LtaConf
     requestIdSeed: env.LTA_REQUEST_ID_SEED ?? 'lta-seed',
     policy: defaultPolicy(env),
     ton,
+    persistence: {
+      dataDirectory: resolve(env.LTA_DATA_DIR ?? '/workspace/.lta-data'),
+      autoCreate: readBoolean(env, 'LTA_AUTO_CREATE_DATA_DIR', true),
+    },
+    execution: {
+      stateDirectory: resolve(env.LTA_DATA_DIR ?? '/workspace/.lta-data'),
+      mode: readBoolean(env, 'LTA_EXECUTION_SIMULATION', true) ? 'dry-run' : 'live',
+      tonExecutionTimeoutMs: readNumber(env, 'LTA_TON_EXECUTION_TIMEOUT_MS', 20_000),
+      exchangeWebhookBaseUrl:
+        env.LTA_EXCHANGE_WEBHOOK_BASE_URL ?? 'http://127.0.0.1:8787/execution',
+      simulationMode: readBoolean(env, 'LTA_EXECUTION_SIMULATION', true),
+      venueWebhooks: {
+        default:
+          env.LTA_EXCHANGE_WEBHOOK_BASE_URL ?? 'http://127.0.0.1:8787/execution',
+        ...(env.LTA_BINANCE_WEBHOOK_URL
+          ? { binance: env.LTA_BINANCE_WEBHOOK_URL }
+          : {}),
+        ...(env.LTA_BYBIT_WEBHOOK_URL ? { bybit: env.LTA_BYBIT_WEBHOOK_URL } : {}),
+        ...(env.LTA_HYPERLIQUID_WEBHOOK_URL
+          ? { hyperliquid: env.LTA_HYPERLIQUID_WEBHOOK_URL }
+          : {}),
+        ...(env.LTA_TON_DEX_WEBHOOK_URL
+          ? { tonDex: env.LTA_TON_DEX_WEBHOOK_URL }
+          : {}),
+        ...(env.LTA_STONFI_WEBHOOK_URL
+          ? { stonfi: env.LTA_STONFI_WEBHOOK_URL }
+          : {}),
+      },
+    },
   };
 }
 
