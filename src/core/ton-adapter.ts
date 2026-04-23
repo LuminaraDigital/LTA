@@ -1,9 +1,17 @@
-import type { TonApprovalPlan, TonConfig, TonWalletRegistration, TradeIntent } from './types.js';
+import type {
+  AttachedTonWallet,
+  TonApprovalPlan,
+  TonConfig,
+  TonWalletRegistration,
+  TradeIntent,
+} from './types.js';
 
 class TonAgenticWalletAdapter {
   constructor(private readonly config: TonConfig) {}
 
   capabilities() {
+    const primaryWallet = this.config.attachedWallets[0];
+
     return {
       provider: 'ton',
       network: this.config.network,
@@ -12,6 +20,9 @@ class TonAgenticWalletAdapter {
       mcpCommand: this.config.mcpCommand,
       mcpArgs: this.config.mcpArgs,
       walletCollection: this.config.agentCollectionAddress,
+      attachedWalletAddress: primaryWallet?.address ?? null,
+      attachedWalletCount: this.config.attachedWallets.length,
+      tonCenterConfigured: Boolean(this.config.tonCenterApiKey),
       notes: [
         'Use split-key agentic wallets for operator isolation.',
         'Keep the owner wallet outside the LTA control plane.',
@@ -32,6 +43,10 @@ class TonAgenticWalletAdapter {
       network: this.config.network,
       status: 'pending_import',
     };
+  }
+
+  getPrimaryWallet(): AttachedTonWallet | null {
+    return this.config.attachedWallets[0] ?? null;
   }
 
   buildImportRunbook(wallet: TonWalletRegistration) {

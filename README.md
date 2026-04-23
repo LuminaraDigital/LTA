@@ -43,6 +43,29 @@ pnpm install
 cp .env.example .env
 ```
 
+For secrets, use a **local-only JSON file outside git**. LTA will read:
+
+```bash
+~/.lta/secrets/ton.json
+```
+
+Example:
+
+```json
+{
+  "tonCenterApiKey": "local-only-secret",
+  "attachedWalletAddress": "UQ..."
+}
+```
+
+Recommended permissions:
+
+```bash
+mkdir -p ~/.lta/secrets
+chmod 700 ~/.lta ~/.lta/secrets
+chmod 600 ~/.lta/secrets/ton.json
+```
+
 ### 3. Run locally
 
 ```bash
@@ -60,6 +83,8 @@ Service health and environment metadata.
 ### `GET /v1/platform/profile`
 
 Returns LTA organization, active policy, strategy catalog size, and TON adapter capabilities.
+
+Secret values such as TON Center API keys are never returned.
 
 ### `GET /v1/strategies`
 

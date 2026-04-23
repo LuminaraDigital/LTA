@@ -1,4 +1,13 @@
-import type { LtaConfig, PolicyPack, StrategyId } from './types.js';
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+import type {
+  AttachedTonWallet,
+  LtaConfig,
+  PolicyPack,
+  StrategyId,
+  TonSecretsFile,
+} from './types.js';
 
 function readNumber(
   env: NodeJS.ProcessEnv,
@@ -42,6 +51,32 @@ function readStrategyList(
   return readList(env, name, fallback) as StrategyId[];
 }
 
+function readOptionalSecretFile(filePath?: string): TonSecretsFile | undefined {
+  if (!filePath) {
+    return undefined;
+  }
+
+  const absolutePath = resolve(filePath);
+  if (!existsSync(absolutePath)) {
+    return undefined;
+  }
+
+  const raw = readFileSync(absolutePath, 'utf8');
+  return JSON.parse(raw) as TonSecretsFile;
+}
+
+function normalizeAttachedWallets(
+  secretFile?: TonSecretsFile,
+): AttachedTonWallet[] {
+  return (
+    secretFile?.attachedWallets?.map((wallet) => ({
+      address: wallet.address,
+      operatorLabel: wallet.operatorLabel ?? wallet.label ?? 'lta-primary',
+      network: wallet.network ?? 'mainnet',
+    })) ?? []
+  );
+}
+
 function defaultPolicy(env: NodeJS.ProcessEnv): PolicyPack {
   return {
     policyVersion: env.LTA_POLICY_VERSION ?? '2026-04-enterprise-alpha',
@@ -72,6 +107,31 @@ function defaultPolicy(env: NodeJS.ProcessEnv): PolicyPack {
 }
 
 export function loadConfigFromEnv(env: NodeJS.ProcessEnv = process.env): LtaConfig {
+  const secretFilePath =
+    env.LTA_LOCAL_SECRET_FILE ?? '/home/ubuntu/.lta-secrets/ton-secrets.json';
+  const secretFile = readOptionalSecretFile(secretFilePath);
+  const attachedWallets = normalizeAttachedWallets(secretFile);
+  const tonConfig = {
+    network: (env.LTA_TON_NETWORK as 'mainnet' | 'testnet') ?? 'testnet',
+    mcpCommand: env.LTA_TON_MCP_COMMAND ?? 'npx',
+    mcpArgs: readList(env, 'LTA_TON_MCP_ARGS', ['-y', '@ton/mcp@alpha']),
+    mcpMode: (env.LTA_TON_MCP_MODE as 'stdio' | 'http') ?? 'stdio',
+    mcpEndpoint: env.LTA_TON_MCP_ENDPOINT ?? 'http://127.0.0.1:3000/mcp',
+    localSecretFilePath: secretFilePath,
+    agentCollectionAddress:
+      env.LTA_TON_AGENT_COLLECTION_ADDRESS ??
+      'EQByQ19qvWxW7VibSbGEgZiYMqilHY5y1a_eeSL2VaXhfy07',
+    attachedWallets,
+  };
+
+  const ton =
+    secretFile?.tonCenterApiKey != null
+      ? {
+          ...tonConfig,
+          tonCenterApiKey: secretFile.tonCenterApiKey,
+        }
+      : tonConfig;
+
   return {
     environment: env.NODE_ENV ?? 'development',
     port: readNumber(env, 'PORT', 3000),
@@ -81,16 +141,7 @@ export function loadConfigFromEnv(env: NodeJS.ProcessEnv = process.env): LtaConf
     policyVersion: env.LTA_POLICY_VERSION ?? '2026-04-enterprise-alpha',
     requestIdSeed: env.LTA_REQUEST_ID_SEED ?? 'lta-seed',
     policy: defaultPolicy(env),
-    ton: {
-      network: (env.LTA_TON_NETWORK as 'mainnet' | 'testnet') ?? 'testnet',
-      mcpCommand: env.LTA_TON_MCP_COMMAND ?? 'npx',
-      mcpArgs: readList(env, 'LTA_TON_MCP_ARGS', ['-y', '@ton/mcp@alpha']),
-      mcpMode: (env.LTA_TON_MCP_MODE as 'stdio' | 'http') ?? 'stdio',
-      mcpEndpoint: env.LTA_TON_MCP_ENDPOINT ?? 'http://127.0.0.1:3000/mcp',
-      agentCollectionAddress:
-        env.LTA_TON_AGENT_COLLECTION_ADDRESS ??
-        'EQByQ19qvWxW7VibSbGEgZiYMqilHY5y1a_eeSL2VaXhfy07',
-    },
+    ton,
   };
 }
 

@@ -179,7 +179,10 @@ export interface TonConfig {
   mcpArgs: string[];
   mcpMode: 'stdio' | 'http';
   mcpEndpoint?: string;
+  tonCenterApiKey?: string;
+  localSecretFilePath: string;
   agentCollectionAddress: string;
+  attachedWallets: AttachedTonWallet[];
 }
 
 export interface LtaConfig {
@@ -200,6 +203,24 @@ export interface TonWalletRegistration {
   operatorLabel: string;
   network: 'mainnet' | 'testnet';
   status: 'pending_import' | 'active' | 'revoked';
+}
+
+export interface AttachedTonWallet {
+  address: string;
+  operatorLabel: string;
+  network: 'mainnet' | 'testnet';
+}
+
+export interface SecretBackedAttachedTonWallet {
+  address: string;
+  label?: string;
+  operatorLabel?: string;
+  network?: 'mainnet' | 'testnet';
+}
+
+export interface TonSecretsFile {
+  tonCenterApiKey?: string;
+  attachedWallets?: SecretBackedAttachedTonWallet[];
 }
 
 export interface TonApprovalPlan {

@@ -167,6 +167,11 @@ export function buildApp() {
     strategyCount: strategies.length,
     ton: tonAdapter.capabilities(),
     policy: config.policy,
+    attachedWallets: config.ton.attachedWallets.map((wallet) => ({
+      address: wallet.address,
+      operatorLabel: wallet.operatorLabel,
+      network: wallet.network,
+    })),
   }));
 
   app.get('/v1/strategies', async () => ({
