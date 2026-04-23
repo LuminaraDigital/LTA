@@ -1,0 +1,2 @@
+# LTA
+AI trading Agent
