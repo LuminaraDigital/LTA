@@ -113,6 +113,7 @@ export function renderApprovalConsole(): string {
         <div class="row">
           <button id="refresh-btn">Refresh cases</button>
           <button id="seed-btn" class="secondary">Load latest overview</button>
+          <a href="/v1/dashboard/executions" style="align-self:center;color:#93c5fd;font-size:14px;font-weight:600;">Execution dashboard →</a>
         </div>
       </section>
 

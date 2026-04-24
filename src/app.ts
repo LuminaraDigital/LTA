@@ -15,6 +15,7 @@ import { buildTonAgenticWalletAdapter } from './core/ton-adapter.js';
 import { buildTonWorker } from './core/ton-worker.js';
 import type { TonMcpClient } from './core/ton-mcp-client.js';
 import { renderApprovalConsole } from './ui/approval-console.js';
+import { renderExecutionDashboard } from './ui/execution-dashboard.js';
 import type {
   DecisionContext,
   ExecutionDirective,
@@ -271,6 +272,11 @@ export function buildApp(options?: {
   app.get('/v1/console', async (_request, reply) => {
     reply.type('text/html');
     return renderApprovalConsole();
+  });
+
+  app.get('/v1/dashboard/executions', async (_request, reply) => {
+    reply.type('text/html');
+    return renderExecutionDashboard();
   });
 
   app.get('/v1/cases', async () => ({
