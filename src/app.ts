@@ -13,6 +13,7 @@ import { defaultStrategies } from './core/strategy-catalog.js';
 import type { StateStore } from './core/state-store.js';
 import { buildTonAgenticWalletAdapter } from './core/ton-adapter.js';
 import { buildTonWorker } from './core/ton-worker.js';
+import type { TonMcpClient } from './core/ton-mcp-client.js';
 import { renderApprovalConsole } from './ui/approval-console.js';
 import type {
   DecisionContext,
@@ -202,7 +203,11 @@ const executionJobBodySchema = {
   },
 } as const;
 
-export function buildApp(options?: { config?: ReturnType<typeof loadConfig>; stateStore?: StateStore }) {
+export function buildApp(options?: {
+  config?: ReturnType<typeof loadConfig>;
+  stateStore?: StateStore;
+  tonMcp?: TonMcpClient;
+}) {
   const config = options?.config ?? loadConfig();
   const strategies = defaultStrategies();
   const riskEngine = buildRiskEngine(config.policy);
@@ -223,6 +228,7 @@ export function buildApp(options?: { config?: ReturnType<typeof loadConfig>; sta
   const executionService = buildExecutionService({
     config,
     tonAdapter,
+    ...(options?.tonMcp ? { tonMcp: options.tonMcp } : {}),
   });
   const tonWorker = buildTonWorker({
     stateStore,
@@ -461,10 +467,7 @@ export function buildApp(options?: { config?: ReturnType<typeof loadConfig>; sta
       });
       stateStore.appendExecutionJob(job);
 
-      const dispatchedJob = await executionService.dispatch(job);
-      stateStore.updateExecutionJob(dispatchedJob);
-
-      return dispatchedJob;
+      return job;
     },
   );
 

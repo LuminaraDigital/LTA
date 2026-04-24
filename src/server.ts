@@ -2,6 +2,7 @@ import { createDatabaseClient, defaultDatabaseClientFactory, runMigrations } fro
 import { buildApp } from './app.js';
 import { loadConfig } from './core/config.js';
 import { buildStateStore } from './core/state-store.js';
+import { buildTonMcpClient } from './core/ton-mcp-client.js';
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -13,9 +14,11 @@ async function main(): Promise<void> {
   const stateStore = await buildStateStore({
     db,
   });
+  const tonMcp = buildTonMcpClient(config.ton);
   const app = buildApp({
     config,
     stateStore,
+    tonMcp,
   });
 
   try {
