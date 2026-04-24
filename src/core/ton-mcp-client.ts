@@ -42,7 +42,10 @@ export function buildTonMcpClient(config: TonConfig): TonMcpClient {
       ...process.env,
       NETWORK: config.network,
       ...(config.tonCenterApiKey
-        ? { TONCENTER_KEY: config.tonCenterApiKey }
+        ? {
+            TONCENTER_API_KEY: config.tonCenterApiKey,
+            TONCENTER_KEY: config.tonCenterApiKey,
+          }
         : {}),
     },
   });

@@ -191,6 +191,7 @@ export function loadConfigFromEnv(env: NodeJS.ProcessEnv = process.env): LtaConf
       tonRetryLimit: readNumber(env, 'LTA_TON_RETRY_LIMIT', 3),
       tonMaxPollAttempts: readNumber(env, 'LTA_TON_MAX_POLL_ATTEMPTS', 8),
       tonPollIntervalMs: readNumber(env, 'LTA_TON_POLL_INTERVAL_MS', 4_000),
+      defaultTonHumanAmount: env.LTA_DEFAULT_TON_HUMAN_AMOUNT ?? '0.01',
       exchangeWebhookBaseUrl:
         env.LTA_EXCHANGE_WEBHOOK_BASE_URL ?? 'http://127.0.0.1:8787/execution',
       simulationMode: readBoolean(env, 'LTA_EXECUTION_SIMULATION', true),

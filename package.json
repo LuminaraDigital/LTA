@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@ton/mcp": "^0.1.13",
     "fastify": "^5.6.1",
     "pg": "^8.20.0"
   },

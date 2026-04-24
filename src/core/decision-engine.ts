@@ -6,6 +6,7 @@ import type {
   ExecutionStep,
   Opportunity,
   StrategyDefinition,
+  TonExecutionHints,
   TradeIdea,
   TradeProposal,
 } from './types.js';
@@ -53,8 +54,21 @@ function scoreOpportunity(opportunity: Opportunity): number {
   );
 }
 
+function mergeTonExecutionHints(
+  opportunity: Opportunity,
+): TonExecutionHints | undefined {
+  const fromMeta = opportunity.venueMetadata?.tonExecution as
+    | TonExecutionHints
+    | undefined;
+  const merged: TonExecutionHints = {
+    ...(fromMeta ?? {}),
+    ...(opportunity.tonExecution ?? {}),
+  };
+  return Object.keys(merged).length > 0 ? merged : undefined;
+}
+
 function toTradeIdea(opportunity: Opportunity): TradeIdea {
-  return {
+  const idea: TradeIdea = {
     symbol: opportunity.symbol,
     venue: opportunity.venue,
     direction:
@@ -71,6 +85,11 @@ function toTradeIdea(opportunity: Opportunity): TradeIdea {
     executionComplexity: opportunity.executionComplexity,
     estimatedVaRUsd: Number((opportunity.notionalUsd * 0.08).toFixed(2)),
   };
+  const tonExecution = mergeTonExecutionHints(opportunity);
+  if (tonExecution) {
+    idea.tonExecution = tonExecution;
+  }
+  return idea;
 }
 
 function buildExecutionPlan(idea: TradeIdea): ExecutionStep[] {

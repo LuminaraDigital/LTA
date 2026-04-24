@@ -59,6 +59,24 @@ export interface PortfolioSnapshot {
   positions: PortfolioPosition[];
 }
 
+/** Optional TON execution hints (from venueMetadata or API overrides). */
+export interface TonExecutionHints {
+  /** Recipient for transfer jobs (native TON or jetton). */
+  toAddress?: string;
+  /** Jetton master contract; when set with transfer directive, worker uses send_jetton. */
+  jettonAddress?: string;
+  /** Human-readable TON or jetton amount (e.g. "1.5"). */
+  amount?: string;
+  /** Optional on-chain comment/memo. */
+  comment?: string;
+  /** Swap leg: from token ("TON" or jetton address). */
+  fromToken?: string;
+  /** Swap leg: to token ("TON" or jetton address). */
+  toToken?: string;
+  /** Slippage in basis points for get_swap_quote (100 = 1%). */
+  slippageBps?: number;
+}
+
 export interface Opportunity {
   id: string;
   strategyId: StrategyId;
@@ -74,6 +92,7 @@ export interface Opportunity {
   catalyst?: string;
   reasoning: string[];
   venueMetadata?: Record<string, unknown>;
+  tonExecution?: TonExecutionHints;
 }
 
 export interface MarketState {
@@ -118,6 +137,8 @@ export interface TradeIdea extends TradeIntent {
   liquidityScore: number;
   executionComplexity: number;
   estimatedVaRUsd: number;
+  /** Carried from the originating opportunity for TON MCP execution mapping. */
+  tonExecution?: TonExecutionHints;
 }
 
 export interface GatingReason {
@@ -404,8 +425,19 @@ export type ExecutionJobTarget = 'ton-mcp' | 'venue-webhook';
 export type ExecutionJobStatus =
   | 'queued'
   | 'running'
+  | 'pending'
   | 'succeeded'
   | 'failed';
+
+/** Chain-facing status from get_transaction_status (MCP). */
+export type TonChainStatus = 'pending' | 'completed' | 'failed';
+
+export interface TonReconciliationPollEntry {
+  polledAt: string;
+  chainStatus: TonChainStatus;
+  rawStructured?: Record<string, unknown>;
+  rawText?: string;
+}
 
 export interface ExecutionJobResult {
   timestamp: string;
@@ -413,6 +445,15 @@ export interface ExecutionJobResult {
   referenceId?: string;
   rawOutput?: string;
   metadata?: Record<string, unknown>;
+  /** Canonical TON external message id for get_transaction_status. */
+  normalizedHash?: string;
+  chainStatus?: TonChainStatus;
+  reconciliation?: {
+    startedAt: string;
+    lastPolledAt?: string;
+    completedAt?: string;
+    pollHistory: TonReconciliationPollEntry[];
+  };
 }
 
 export interface ExecutionJob {
@@ -459,6 +500,8 @@ export interface ExecutionConfig {
   venueWebhooks: ExecutionWebhookMap;
   exchangeWebhookBaseUrl?: string;
   simulationMode?: boolean;
+  /** Default human-readable TON/jetton amount when hints omit amount (simulation / dry-run only). */
+  defaultTonHumanAmount?: string;
   tonPollIntervalMs: number;
   tonMaxPollAttempts: number;
   tonRetryLimit: number;
